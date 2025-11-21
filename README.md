@@ -155,10 +155,7 @@ Features:
 **Waveform:**  
 Shows correct propagation of samples:
 
-```
 ![Waveform](Assets/wave_shift_reg.png)
-
-```
 
 ---
 
