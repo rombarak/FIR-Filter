@@ -28,7 +28,7 @@ The design demonstrates fixed-point DSP techniques, deterministic pipelining, a 
 ## **Author**
 **Rom Barak**  
 B.Sc. Electrical Engineering, Bar-Ilan University  
-Focus: Digital Design, Fixed-Point DSP, RTL Architecture, VLSI Logic
+Focus: Nanoelectronics and Communication Systems
 
 ---
 
