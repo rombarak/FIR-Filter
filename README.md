@@ -1,229 +1,212 @@
-# 16-Tap FIR Filter (Verilog HDL)
+# 16‑Tap FIR Filter (Verilog HDL)
 
-This repository contains a fully-pipelined, synthesizable **16-tap FIR (Finite Impulse Response) digital filter** implemented in Verilog HDL.  
-The design demonstrates fixed-point DSP implementation techniques, efficient multiply-accumulate hardware, pipelined arithmetic, and cycle-accurate verification using a self-checking testbench.
-
----
-
-## Table of Contents
-- [Author](#author)
-- [Introduction](#introduction)
-- [What Is Fixed-Point Arithmetic?](#what-is-fixed-point-arithmetic)
-- [FIR Filter Theory](#fir-filter-theory)
-- [Coefficient Design](#coefficient-design)
-- [Architecture Overview](#architecture-overview)
-- [Module Descriptions](#module-descriptions)
-  - [Shift Register](#shift-register)
-  - [Coefficient ROM](#coefficient-rom)
-  - [MAC Core](#mac-core)
-  - [Top-Level Module](#top-level-module)
-  - [Self-Checking Testbench](#self-checking-testbench)
-- [Simulation Waveforms](#simulation-waveforms)
-- [Possible Improvements](#possible-improvements)
-- [Conclusion](#conclusion)
-- [License](#license)
+This repository contains a fully‑pipelined, synthesizable **16‑tap FIR (Finite Impulse Response) digital filter** implemented in Verilog HDL.  
+The design demonstrates fixed‑point DSP implementation techniques, efficient multiply‑accumulate hardware, pipelined arithmetic, and cycle‑accurate verification using a self‑checking testbench.
 
 ---
 
 ## Author
 **Rom Barak**  
-B.Sc. Electrical Engineering, Bar-Ilan University  
+B.Sc. Electrical Engineering, Bar‑Ilan University  
 Focus Areas: Nanoelectronics and Communication Systems
 
 ---
 
 ## Introduction
-This project implements a low-pass FIR filter using **fixed-point arithmetic**, **pipelined MAC operations**, and a **structural Verilog design** consisting of:
-
-- 16-tap serial input shift-register
-- Signed 16-bit coefficient ROM (Q1.15 format)
-- Pipelined MAC engine producing a 36-bit output
-- Top-level module integrating all components
-- Complete self-checking testbench comparing DUT output to a reference model
-
-The filter provides **one valid output sample per clock cycle** after two cycles of pipeline latency.
+This project implements a low‑pass FIR filter using fixed‑point arithmetic, pipelined MAC operations, and a clean structural Verilog architecture.  
+The system computes one filtered output sample per clock cycle after a fixed **2‑cycle pipeline latency**, making it suitable for high‑throughput DSP hardware.
 
 ---
 
-## What Is Fixed-Point Arithmetic?
-In digital signal processing hardware, floating-point units are expensive in area, latency, and power.  
-Therefore, FIR filters in ASICs and FPGAs are almost always implemented using **fixed-point arithmetic**.
+## What Is Fixed‑Point Arithmetic?
+Hardware DSP systems rarely use floating‑point due to area, latency, and power cost.  
+Instead, FIR filters almost always use **fixed‑point formats**.
 
-### Q1.15 Format (Used Here)
-- **1 sign bit**
-- **15 fractional bits**
+### Q1.15 Format (Used in This Design)
+- 1 sign bit  
+- 15 fractional bits  
 - Range: −1.0 to +0.99997  
-- Resolution: \( 2^{-15} \approx 3.05 \times 10^{-5} \)
+- Resolution: 2⁻¹⁵ ≈ 3.05×10⁻⁵  
 
-When multiplying:
+Multiplication produces:
 ```
-16-bit × 16-bit → 32-bit
-```
-To accumulate safely across 16 taps:
-```
-32-bit products -> sign-extended to 36 bits
+16‑bit × 16‑bit → 32‑bit product
 ```
 
-This prevents overflow inside the adder tree.
+To safely accumulate 16 products:
+```
+Products are sign‑extended: 32 → 36 bits
+```
 
 ---
 
 ## FIR Filter Theory
-A 16-tap FIR computes:
+A 16‑tap FIR filter computes:
 
-\[
-y[n] = \sum_{k=0}^{15} h[k] \cdot x[n - k]
-\]
+y[n] = Σ h[k] · x[n−k]   (k = 0…15)
 
-Where:
-- \(x[n]\) = input samples  
-- \(h[k]\) = filter coefficients  
-- Output is guaranteed stable (FIR filters are always stable)
-
-For a **low-pass filter**, coefficients are typically symmetric and smooth, providing:
-
-- Passband preservation  
-- Stopband attenuation  
-- Linear phase due to symmetry
+- x[n] – input samples  
+- h[k] – filter coefficients  
+- Stability is guaranteed (FIR filters are always stable)  
+- Symmetry ensures linear phase  
 
 ---
 
 ## Coefficient Design
-The coefficients were generated offline using a standard FIR design flow:
+The coefficients were designed offline using a classical low‑pass filter design flow:
 
-1. **Select cutoff frequency** (low-pass)
-2. **Design symmetric taps**  
-3. **Quantize to Q1.15 fixed-point**
-4. **Export signed 16-bit constants**
+1. Select cutoff frequency  
+2. Generate ideal impulse response  
+3. Apply windowing  
+4. Enforce symmetry  
+5. Quantize to Q1.15  
+6. Export as signed 16‑bit integers  
 
-Example taps (used in this design):
+Final taps used:
 
 ```
-h = [-84, -53, 120, 240, 350, 420, 450, 460,
-      460, 450, 420, 350, 240, 120, -53, -84]
+[-84, -53, 120, 240, 350, 420, 450, 460,
+  460, 450, 420, 350, 240, 120, -53, -84]
 ```
 
-Properties:
-- Symmetric -> linear phase
-- Smooth shape -> low ripple
-- Normalized so that sum(h) < 1 to avoid overflow
+### Properties
+- Symmetric → linear‑phase  
+- Smooth shape → low passband ripple  
+- Sum(h) < 1 → overflow‑safe  
 
 ---
 
 ## Architecture Overview
-The design is divided into four hardware blocks:
+Four hardware blocks form the full filter:
 
-| Block | Function |
-|-------|----------|
-| **Shift Register** | Stores last 16 samples (x[n], x[n-1], …) |
+| Block | Description |
+|-------|-------------|
+| **Shift Register** | Holds x[n] … x[n−15] in 16 pipeline registers |
 | **Coefficient ROM** | Outputs 16 constant Q1.15 coefficients |
-| **MAC Core** | Pipelined multiply-accumulate engine |
-| **Top Module** | Connects all modules |
+| **MAC Core** | Performs 16 parallel multiplications + pipelined adder tree |
+| **Top Module** | Structural integration of the entire filter |
 
-Pipeline latency: **2 cycles**  
-Throughput: **1 filtered output every cycle**
+### Pipeline timing
+- **Latency:** 2 cycles  
+- **Throughput:** 1 output per cycle  
 
 ---
 
 ## Module Descriptions
 
 ### Shift Register
-- 16 cascaded 16-bit registers  
-- Newest sample enters `tap0`  
-- Oldest sample exits `tap15`  
-- Outputs a packed 256-bit bus
+Stores the last 16 input samples.  
+Each cycle:
+- tap15 <= tap14  
+- …  
+- tap1 <= tap0  
+- tap0 <= sample_in  
+
+Produces packed 256‑bit bus `samples_flat`.
+
+**Waveform:**  
+![Shift Register](Assets/wave_shift_reg.png)
+
+---
 
 ### Coefficient ROM
-- 16 constant signed 16-bit values  
-- Stored as Verilog `assign` statements  
-- Format: Q1.15 fixed-point
+Implements 16 signed constants in Q1.15 format using `assign` statements.
+
+Features:
+- Zero latency  
+- Fully synthesizable  
+- Symmetric coefficient set
+
+---
 
 ### MAC Core
-The heart of the FIR filter.
+This is the computational engine of the filter.
 
-Stages:
-1. **Stage 1:**  
-   16 parallel multiplications  
-   -> each product stored in 32-bit registers
-2. **Sign Extension:**  
-   Extend 32→36 bits to avoid overflow
-3. **Adder Tree:**  
-   Balanced 36-bit tree to sum 16 values
-4. **Stage 2:**  
-   Pipeline register storing final sum
+**Pipeline Stages**
+1. **Stage 1 – Parallel Multipliers**  
+   - 16 multipliers  
+   - Each result stored in `prodX` registers
 
-Output: signed 36-bit filtered sample
+   ![MAC Products 1](Assets/wave_mac_prod1.png)  
+   ![MAC Products 2](Assets/wave_mac_prod2.png)  
+   ![MAC Products 3](Assets/wave_mac_prod3.png)
 
-### Top-Level Module
-Connects:
-- Shift register
-- Coefficient ROM
-- MAC core
+2. **Sign Extension**  
+   Convert 32‑bit products → 36‑bit for safe accumulation
 
-Provides the user interface:
-```
-clk, reset, sample_in → y_out
-```
+3. **Adder Tree (Combinational)**  
+   Four‑level balanced tree:  
+   ```
+   16 → 8 → 4 → 2 → 1
+   ```  
+   ![MAC Part 1](Assets/wave_mac_part1.png)  
+   ![MAC Part 2](Assets/wave_mac_part2.png)  
+   ![MAC Part 3](Assets/wave_mac_part3.png)
 
-### Self-Checking Testbench
-The testbench provides:
+4. **Stage 2 – Output Register**  
+   Stores `final_sum` into `y_out`.
 
-- Clock/reset generation  
-- A software FIR model (reference)  
-- Automatic comparison with `y_out`  
-- VCD waveform dump  
-- Random, step, ramp, and alternating patterns
+**Latency Visualization:**  
+![Output Latency](Assets/wave_output_latency.png)
 
-If a mismatch occurs, the testbench stops immediately.
+---
+
+## Self‑Checking Testbench
+Features:
+- Clock and reset generation  
+- Reference FIR model identical to DUT  
+- 2‑cycle matching delay  
+- Automatic pass/fail checking  
+- VCD dump for waveform analysis  
+
+Stimuli include:
+- Ramp  
+- Step  
+- Alternating ±100  
+- Reset behavior  
+
+If `y_out` ≠ reference, the simulation stops immediately.
 
 ---
 
 ## Simulation Waveforms
-Recommended waveform captures to include:
+Included waveforms show:
 
-1. **Shift Register Operation**  
-   - Show `sample_in` flowing through taps  
-   - Show packed `samples_flat`
-
-2. **MAC Pipeline Behavior**  
-   - `prodX` signals at Stage 1  
-   - `final_sum` before Stage 2  
-   - `y_out` after pipeline
-
-3. **Reference vs. DUT Output**  
-   - `y_out`  
-   - `ref_y_delayed[1]`  
-   - Both should match exactly
-
-4. **Reset and Warmup Behavior**  
-   - Clear taps  
-   - Enable checker after 6 cycles
-
-You can upload clean screenshots taken from EPWave/GTKWave.
+1. Correct tap‑flow inside shift‑register  
+2. Stable MAC multipliers  
+3. Balanced 36‑bit adder tree  
+4. 2‑cycle latency between input and output  
+5. Perfect match between DUT and software model  
 
 ---
 
 ## Possible Improvements
-The architecture can be extended with:
+Future enhancements can include:
 
-1. **Configurable number of taps**
-2. **Runtime-programmable coefficients**
-3. **Multi-channel parallelism**
-4. **Higher-order pipelining for 500–800 MHz operation**
-5. **Support for floating-point coefficients**
-6. **Polyphase structure for interpolation/decimation**
-7. **AXI-Stream interface for SoC integration**
+- Dynamic coefficient loading  
+- Larger tap support (32, 64, 128…)  
+- Polyphase design for interpolation / decimation  
+- FPGA DSP‑slice optimization  
+- AXI‑Stream or Avalon streaming interface  
+- Fixed‑ vs floating‑point hybrid processing  
 
 ---
 
 ## Conclusion
-This project demonstrates a complete and verified **fixed-point digital filter** implemented in Verilog.  
-It covers essential DSP hardware concepts including pipelining, multiply-accumulate datapaths, Q-format arithmetic, and self-checking verification.  
-The modular design, clean interface, and deterministic latency make it suitable for FPGA/ASIC integration, as well as an educational reference for FIR hardware implementation.
+This project demonstrates a complete, highly accurate, fully pipelined FIR filter implemented in Verilog HDL.  
+It highlights key DSP hardware concepts such as:
+
+- Q‑format arithmetic  
+- Multiply‑accumulate pipelines  
+- Balanced adder trees  
+- Deterministic latency design  
+- Automated testbench verification  
+
+The modular structure makes this design ideal for FPGA, ASIC, or academic DSP work.
 
 ---
 
 ## License
-This project is released for educational and academic use.  
-Users may modify or extend the design with proper attribution.
+Released for educational and academic use.  
+May be modified or extended with attribution.
 
