@@ -156,7 +156,7 @@ Features:
 Shows correct propagation of samples:
 
 ```
-Assets/wave_shift_reg.png
+(Assets/wave_shift_reg.png)
 ```
 
 ---
@@ -180,9 +180,9 @@ The core DSP engine consisting of:
 - Products stored in 32-bit pipeline registers  
 
 Images:  
-- `Assets/wave_mac_prod1.png`  
-- `Assets/wave_mac_prod2.png`  
-- `Assets/wave_mac_prod3.png`
+- (Assets/wave_mac_prod1.png)  
+- (Assets/wave_mac_prod2.png)  
+- (Assets/wave_mac_prod3.png)
 
 These images confirm correct multiplier operation.
 
@@ -198,9 +198,9 @@ Four-level balanced tree:
 - 2→1 → final_sum  
 
 Images:  
-- `Assets/wave_mac_part1.png`  
-- `Assets/wave_mac_part2.png`  
-- `Assets/wave_mac_part3.png`
+- (Assets/wave_mac_part1.png)  
+- (Assets/wave_mac_part2.png)  
+- (Assets/wave_mac_part3.png)
 
 These waveforms demonstrate correct accumulation.
 
