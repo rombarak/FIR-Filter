@@ -1,212 +1,157 @@
-# 16‑Tap FIR Filter (Verilog HDL)
+# 16-Tap FIR Filter (Verilog HDL)
 
-This repository contains a fully‑pipelined, synthesizable **16‑tap FIR (Finite Impulse Response) digital filter** implemented in Verilog HDL.  
-The design demonstrates fixed‑point DSP implementation techniques, efficient multiply‑accumulate hardware, pipelined arithmetic, and cycle‑accurate verification using a self‑checking testbench.
+This repository contains a fully-pipelined, synthesizable **16-tap FIR (Finite Impulse Response) digital filter** implemented in Verilog HDL. The design demonstrates fixed-point DSP implementation techniques, efficient multiply-accumulate hardware, pipelined arithmetic, and cycle-accurate verification using a self-checking testbench.
 
----
+## Table of Contents
+- **Author**
+- **Introduction**
+- **What Is Fixed-Point Arithmetic?**
+- **FIR Filter Theory**
+- **Coefficient Design**
+- **Architecture Overview**
+- **Detailed Module Descriptions**
+  - Shift Register
+  - Coefficient ROM
+  - MAC Core
+  - Top-Level Module
+  - Self-Checking Testbench
+- **Simulation Waveforms**
+- **Possible Improvements**
+- **Conclusion**
+- **License**
 
 ## Author
 **Rom Barak**  
-B.Sc. Electrical Engineering, Bar‑Ilan University  
+B.Sc. Electrical Engineering, Bar-Ilan University  
 Focus Areas: Nanoelectronics and Communication Systems
 
----
-
 ## Introduction
-This project implements a low‑pass FIR filter using fixed‑point arithmetic, pipelined MAC operations, and a clean structural Verilog architecture.  
-The system computes one filtered output sample per clock cycle after a fixed **2‑cycle pipeline latency**, making it suitable for high‑throughput DSP hardware.
+This project implements a low-pass FIR filter using **fixed-point arithmetic**, **pipelined MAC operations**, and a clean structural Verilog hierarchy.  
+The complete design includes:
 
----
+- A 16-tap serial input shift register  
+- A signed 16-bit coefficient ROM (Q1.15 format)  
+- A pipelined multiply–accumulate (MAC) engine producing a 36-bit output  
+- A top-level module integrating all components  
+- A comprehensive self-checking testbench with a software reference model  
 
-## What Is Fixed‑Point Arithmetic?
-Hardware DSP systems rarely use floating‑point due to area, latency, and power cost.  
-Instead, FIR filters almost always use **fixed‑point formats**.
+The filter produces **one valid output per clock cycle** after a deterministic **two-cycle pipeline latency**.
 
-### Q1.15 Format (Used in This Design)
+## What Is Fixed-Point Arithmetic?
+Hardware DSP systems rarely use floating-point because floating-point units are expensive in area, power, and latency.  
+Instead, FIR filters in ASICs and FPGAs almost always rely on **fixed-point arithmetic**.
+
+### Q1.15 Format (Used in this project)
 - 1 sign bit  
 - 15 fractional bits  
 - Range: −1.0 to +0.99997  
 - Resolution: 2⁻¹⁵ ≈ 3.05×10⁻⁵  
 
-Multiplication produces:
-```
-16‑bit × 16‑bit → 32‑bit product
-```
+Multiplication:
+- 16-bit × 16-bit → 32-bit product
 
-To safely accumulate 16 products:
-```
-Products are sign‑extended: 32 → 36 bits
-```
+Accumulation:
+- Products are **sign-extended** to 36-bits  
+- Prevents overflow during the sum of 16 taps  
 
----
+This format is widely used in audio DSP, communication filters, and embedded hardware.
 
 ## FIR Filter Theory
-A 16‑tap FIR filter computes:
 
-y[n] = Σ h[k] · x[n−k]   (k = 0…15)
+A 16-tap FIR filter computes:
 
-- x[n] – input samples  
-- h[k] – filter coefficients  
-- Stability is guaranteed (FIR filters are always stable)  
-- Symmetry ensures linear phase  
+y[n] = Σ ( h[k] × x[n − k] ), for k = 0..15
 
----
+Where:
+- x[n] = input samples  
+- h[k] = filter coefficients  
+- Output is inherently stable (FIR filters are always stable)  
+- Symmetric coefficients produce **linear-phase** filtering  
 
 ## Coefficient Design
-The coefficients were designed offline using a classical low‑pass filter design flow:
 
-1. Select cutoff frequency  
-2. Generate ideal impulse response  
-3. Apply windowing  
-4. Enforce symmetry  
-5. Quantize to Q1.15  
-6. Export as signed 16‑bit integers  
+The coefficients were generated using a standard FIR design procedure:
 
-Final taps used:
+1. Selection of a desired **low-pass cutoff frequency**  
+2. Design of a **symmetric** impulse response  
+3. Quantization to **Q1.15 fixed-point**  
+4. Export as signed 16-bit constants  
 
-```
-[-84, -53, 120, 240, 350, 420, 450, 460,
-  460, 450, 420, 350, 240, 120, -53, -84]
-```
+Coefficients used in this project:
 
-### Properties
-- Symmetric → linear‑phase  
-- Smooth shape → low passband ripple  
-- Sum(h) < 1 → overflow‑safe  
+-84, −53, 120, 240, 350, 420, 450, 460, 460, 450, 420, 350, 240, 120, −53, −84
 
----
+Properties:
+- Symmetric → linear phase  
+- Smooth windowed shape → low ripple  
+- Normalized to avoid overflow  
 
 ## Architecture Overview
-Four hardware blocks form the full filter:
 
-| Block | Description |
-|-------|-------------|
-| **Shift Register** | Holds x[n] … x[n−15] in 16 pipeline registers |
-| **Coefficient ROM** | Outputs 16 constant Q1.15 coefficients |
-| **MAC Core** | Performs 16 parallel multiplications + pipelined adder tree |
-| **Top Module** | Structural integration of the entire filter |
+The design is composed of four main hardware blocks:
 
-### Pipeline timing
-- **Latency:** 2 cycles  
-- **Throughput:** 1 output per cycle  
+| Block | Function |
+|-------|----------|
+| **Shift Register** | Stores the last 16 input samples |
+| **Coefficient ROM** | Provides 16 constant Q1.15 coefficients |
+| **MAC Core** | Pipelined multiply–accumulate engine |
+| **Top Module** | Connects all blocks and defines the external interface |
 
----
+**Pipeline Latency:** 2 cycles  
+**Throughput:** 1 output sample per cycle  
 
-## Module Descriptions
+## Module Descriptions (Expanded)
 
-### Shift Register
-Stores the last 16 input samples.  
-Each cycle:
-- tap15 <= tap14  
-- …  
-- tap1 <= tap0  
-- tap0 <= sample_in  
+### Shift Register – 16-Tap Sample Delay Line
+The shift register implements the required memory window for x[n], x[n−1], ..., x[n−15].
 
-Produces packed 256‑bit bus `samples_flat`.
+### Coefficient ROM – Signed Q1.15 FIR Taps
+This module stores the filter coefficients.
 
-**Waveform:**  
-![Shift Register](Assets/wave_shift_reg.png)
+### MAC Core – Pipelined Multiply–Accumulate Engine
+This is the heart of the FIR filter.
 
----
+### Top-Level Module – System Integration
+This module binds everything together.
 
-### Coefficient ROM
-Implements 16 signed constants in Q1.15 format using `assign` statements.
-
-Features:
-- Zero latency  
-- Fully synthesizable  
-- Symmetric coefficient set
-
----
-
-### MAC Core
-This is the computational engine of the filter.
-
-**Pipeline Stages**
-1. **Stage 1 – Parallel Multipliers**  
-   - 16 multipliers  
-   - Each result stored in `prodX` registers
-
-   ![MAC Products 1](Assets/wave_mac_prod1.png)  
-   ![MAC Products 2](Assets/wave_mac_prod2.png)  
-   ![MAC Products 3](Assets/wave_mac_prod3.png)
-
-2. **Sign Extension**  
-   Convert 32‑bit products → 36‑bit for safe accumulation
-
-3. **Adder Tree (Combinational)**  
-   Four‑level balanced tree:  
-   ```
-   16 → 8 → 4 → 2 → 1
-   ```  
-   ![MAC Part 1](Assets/wave_mac_part1.png)  
-   ![MAC Part 2](Assets/wave_mac_part2.png)  
-   ![MAC Part 3](Assets/wave_mac_part3.png)
-
-4. **Stage 2 – Output Register**  
-   Stores `final_sum` into `y_out`.
-
-**Latency Visualization:**  
-![Output Latency](Assets/wave_output_latency.png)
-
----
-
-## Self‑Checking Testbench
-Features:
-- Clock and reset generation  
-- Reference FIR model identical to DUT  
-- 2‑cycle matching delay  
-- Automatic pass/fail checking  
-- VCD dump for waveform analysis  
-
-Stimuli include:
-- Ramp  
-- Step  
-- Alternating ±100  
-- Reset behavior  
-
-If `y_out` ≠ reference, the simulation stops immediately.
-
----
+### Self-Checking Testbench – Full Behavioral Verification
+A professional verification environment supporting:
 
 ## Simulation Waveforms
-Included waveforms show:
 
-1. Correct tap‑flow inside shift‑register  
-2. Stable MAC multipliers  
-3. Balanced 36‑bit adder tree  
-4. 2‑cycle latency between input and output  
-5. Perfect match between DUT and software model  
+### Shift Register
+![Shift Register](Assets/wave_shift_reg.png)
 
----
+### MAC Pipeline (Part 1)
+![MAC Part 1](Assets/wave_mac_part1.png)
+
+### MAC Pipeline (Part 2)
+![MAC Part 2](Assets/wave_mac_part2.png)
+
+### MAC Pipeline (Part 3)
+![MAC Part 3](Assets/wave_mac_part3.png)
+
+### Stage1 Products
+![Products](Assets/wave_mac_prod1.png)
+
+### Output Latency
+![Latency](Assets/wave_output_latency.png)
 
 ## Possible Improvements
-Future enhancements can include:
-
-- Dynamic coefficient loading  
-- Larger tap support (32, 64, 128…)  
-- Polyphase design for interpolation / decimation  
-- FPGA DSP‑slice optimization  
-- AXI‑Stream or Avalon streaming interface  
-- Fixed‑ vs floating‑point hybrid processing  
-
----
+1. Parametric number of taps  
+2. Runtime-programmable coefficients  
+3. Multi-channel filter bank support  
+4. Additional pipeline stages for >500 MHz operation  
+5. Floating-point version  
+6. Polyphase filters for interpolation/decimation  
+7. AXI-Stream interface for SoC integration  
 
 ## Conclusion
-This project demonstrates a complete, highly accurate, fully pipelined FIR filter implemented in Verilog HDL.  
-It highlights key DSP hardware concepts such as:
+This project demonstrates a complete, high-quality **fixed-point FIR digital filter** implemented in Verilog.  
+The design incorporates industry-standard DSP techniques such as pipelined MAC computation, Q-format arithmetic, balanced adder tree architecture, and full behavioral verification.
 
-- Q‑format arithmetic  
-- Multiply‑accumulate pipelines  
-- Balanced adder trees  
-- Deterministic latency design  
-- Automated testbench verification  
-
-The modular structure makes this design ideal for FPGA, ASIC, or academic DSP work.
-
----
+Because of its modular structure, deterministic timing, and synthesizability, this FIR filter is suitable both for educational purposes and real-world FPGA/ASIC DSP systems.
 
 ## License
-Released for educational and academic use.  
-May be modified or extended with attribution.
-
+This project is released for academic and educational use.  
+Users may extend or modify the design with proper attribution.
