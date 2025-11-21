@@ -196,9 +196,9 @@ Four-level balanced tree:
 - 2→1 → final_sum  
 
 Images:  
-- (Assets/wave_mac_part1.png)  
-- (Assets/wave_mac_part2.png)  
-- (Assets/wave_mac_part3.png)
+- ![Waveform](Assets/wave_mac_part1.png)  
+- ![Waveform](Assets/wave_mac_part2.png)   
+- ![Waveform](Assets/wave_mac_part3.png) 
 
 These waveforms demonstrate correct accumulation.
 
@@ -249,20 +249,17 @@ A waveform is generated: `dump.vcd`.
 ### 1. Shift Register Operation  
 Demonstrates correct sample propagation through taps:
 
-```
 ![Shift Register](Assets/wave_shift_reg.png)
-```
+
 
 ---
 
 ### 2. MAC Core — Partial Adder Tree  
 Shows early aggregation stages:
 
-```
 ![MAC Stage 1](Assets/wave_mac_part1.png)
 ![MAC Stage 2](Assets/wave_mac_part2.png)
 ![MAC Stage 3](Assets/wave_mac_part3.png)
-```
 
 ---
 
