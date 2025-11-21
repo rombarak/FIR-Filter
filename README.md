@@ -1,11 +1,11 @@
-# 16-Tap FIR Filter (Verilog HDL)
+# **16-Tap FIR Filter (Verilog HDL)**
 
-This repository contains a fully-pipelined, synthesizable **16-tap FIR (Finite Impulse Response) digital filter** implemented entirely in Verilog HDL.  
-The design demonstrates fixed-point DSP implementation techniques, pipelined arithmetic, a balanced adder tree, and full verification using a self-checking testbench.
+This repository contains a fully-pipelined, synthesizable **16-tap FIR (Finite Impulse Response) filter** implemented in Verilog HDL.  
+The design demonstrates fixed-point DSP techniques, deterministic pipelining, a balanced adder tree, and full cycle-accurate verification using a self-checking testbench.
 
 ---
 
-## Table of Contents
+## **Table of Contents**
 - [Author](#author)
 - [Introduction](#introduction)
 - [What Is Fixed-Point Arithmetic?](#what-is-fixed-point-arithmetic)
@@ -16,7 +16,7 @@ The design demonstrates fixed-point DSP implementation techniques, pipelined ari
   - [Shift Register](#shift-register)
   - [Coefficient ROM](#coefficient-rom)
   - [MAC Core](#mac-core)
-  - [Top-Level Module](#top-level-module)
+  - [Top-Level](#top-level)
   - [Self-Checking Testbench](#self-checking-testbench)
 - [Simulation Waveforms](#simulation-waveforms)
 - [Possible Improvements](#possible-improvements)
@@ -25,291 +25,215 @@ The design demonstrates fixed-point DSP implementation techniques, pipelined ari
 
 ---
 
-## Author
+## **Author**
 **Rom Barak**  
 B.Sc. Electrical Engineering, Bar-Ilan University  
-Focus: Digital Design, Fixed-Point DSP, RTL, VLSI Architecture
+Focus: Digital Design, Fixed-Point DSP, RTL Architecture, VLSI Logic
 
 ---
 
-## Introduction
-This project implements a **fixed-point low-pass FIR filter** using a structural, pipelined architecture:
+## **Introduction**
 
-- 16-tap serial input shift register  
-- 16 constant signed coefficients in Q1.15  
-- Pipelined MAC engine (two-stage pipeline)  
+This project implements a complete **fixed-point low-pass FIR filter** using:
+
+- 16-tap input shift register  
+- Constant Q1.15 coefficients  
+- Two-stage pipelined MAC core  
 - Balanced 36-bit adder tree  
-- Top-level hardware integration  
-- Full, cycle-accurate verification using a self-checking testbench
+- Fully self-checking testbench  
 
-The design outputs **one filtered sample per clock cycle**, with a deterministic **two-cycle latency**.
-
-This repository is structured as a clean hardware project suitable for FPGA and ASIC integration.
+The design outputs **one filtered sample per clock** with a deterministic **two-cycle latency**  
+and is fully synthesizable for FPGA/ASIC integration.
 
 ---
 
-## What Is Fixed-Point Arithmetic?
-Most hardware DSP systems avoid floating-point due to:
+## **What Is Fixed-Point Arithmetic?**
 
-- High latency  
-- Power consumption  
-- Larger area  
-- Non-deterministic rounding behavior  
+Fixed-point (Q-format) is widely used in hardware DSP due to:
 
-Instead, fixed-point formats (Q-format) provide:
+- Low area and power
+- Deterministic rounding/overflow
+- Reproducible bit-accurate behavior
+- Efficient synthesis and timing closure
 
-- Predictable overflow characteristics  
-- Efficient synthesis  
-- Bit-exact behavior  
-- Reduced area & power  
+### **Q1.15 Format (Used Here)**
 
-### Q1.15 Format (used here)
 - 1 sign bit  
 - 15 fractional bits  
-- Range: **–1 ≤ x < +1**  
-- LSB ≈ **3.05e–5**
+- Range: −1.0 ≤ x < +1.0  
+- Resolution ≈ 3.05×10⁻⁵  
 
-Multiplication:  
-```
-16-bit × 16-bit → 32-bit product
-```
-
-Accumulating 16 products requires safe headroom → extended to 36 bits.
-
-This ensures:
-- No overflow  
-- Correct rounding  
-- Fully deterministic DSP behavior  
+Multiplications:  
+- 16-bit × 16-bit → 32-bit  
+- Summing 16 products → extended to **36 bits** to avoid overflow.
 
 ---
 
-## FIR Filter Theory
+## **FIR Filter Theory**
 
-A 16-tap FIR filter computes:
+A 16-tap FIR computes:
 
 \[
 y[n] = \sum_{k=0}^{15} h[k] \cdot x[n-k]
 \]
 
-Properties:
+FIR properties:
 
 - Always stable  
-- Linear-phase (due to symmetrical taps)  
-- Perfectly deterministic  
-- Suitable for filtering audio, communication signals, sensor data, etc.
+- Linear phase (symmetric coefficients)  
+- Deterministic timing  
+- Ideal for audio, comms, and sensor filtering
 
 ---
 
-## Coefficient Design
+## **Coefficient Design**
 
-The taps were generated using a standard low-pass filter design flow:
+The filter uses the following **symmetric low-pass FIR coefficients**:
 
-1. Selected normalized cutoff  
-2. Generated symmetric impulse response  
-3. Quantized to **Q1.15**  
-4. Exported as 16 signed integers
+    [-84, -53, 120, 240, 350, 420, 450, 460,
+     460, 450, 420, 350, 240, 120, -53, -84]
 
-The coefficients:
 
-```
-[-84, -53, 120, 240, 350, 420, 450, 460,
- 460, 450, 420, 350, 240, 120, -53, -84]
-```
+Why they were chosen:
 
-Why they work:
-
-- **Symmetry** → perfectly linear phase  
-- **Smooth shape** → good stopband attenuation  
-- **Normalized** → avoids internal overflow  
-- **Short length (16 taps)** → optimized area & latency  
-- Represents a clean, classic low-pass FIR windowed design.
+- Symmetry → linear phase  
+- Smooth shape → good attenuation  
+- Normalized → avoids internal overflow  
+- 16 taps → optimal area/latency tradeoff  
 
 ---
 
-## Architecture Overview
+## **Architecture Overview**
 
-| Block | Purpose |
-|-------|---------|
-| **Shift Register** | Stores the last 16 input samples |
-| **Coefficient ROM** | Provides 16 pre-computed Q1.15 taps |
-| **MAC Core** | Performs 16 multiplications + adder tree |
-| **Top-Level** | Connects all blocks into a working filter |
-| **Testbench** | Performs cycle-accurate verification |
+| Block | Description |
+|-------|-------------|
+| **Shift Register** | Stores the last 16 samples |
+| **Coefficient ROM** | Provides Q1.15 taps |
+| **MAC Core** | 16 multipliers + 36-bit adder tree |
+| **Top-Level** | Wiring + control |
+| **Testbench** | Full cycle-accurate verification |
 
-Pipeline latency: **2 cycles**  
-Throughput: **1 output per cycle**
+**Latency:** 2 cycles  
+**Throughput:** 1 output/clock  
 
 ---
 
-## Module Descriptions
+# 🧩 **Module Descriptions**
 
-### Shift Register
-Handles time-alignment between input samples.  
-Features:
+---
 
-- 16 registers (`tap0` newest → `tap15` oldest)  
-- Synchronous shifting  
-- Output packing into **256-bit** bus  
-- Ensures MAC engine receives a stable vector every cycle
+## **Shift Register**
+
+Stores 16 sequential samples (`tap0` = newest).  
+Provides a stable 256-bit packed bus to the MAC core.
 
 **Waveform:**  
-Shows correct propagation of samples:
-
-![Waveform](Assets/wave_shift_reg.png)
-
----
-
-### Coefficient ROM
-Contains the 16 signed Q1.15 coefficients.
-
-Features:
-- Zero-latency combinational read  
-- Easily swappable coefficient sets  
-- Fully synthesizable constants  
-- Provides stable coefficients every cycle
-
----
-
-### MAC Core
-The core DSP engine consisting of:
-
-#### 1. **Stage 1 — Parallel Multipliers**
-- 16 signed 16×16 multipliers  
-- Products stored in 32-bit pipeline registers  
-
-Images:  
-- (Assets/wave_mac_prod1.png)  
-- (Assets/wave_mac_prod2.png)  
-- (Assets/wave_mac_prod3.png)
-
-These images confirm correct multiplier operation.
-
-#### 2. **Sign Extension**
-Extends each 32-bit product to 36 bits to prevent overflow.
-
-#### 3. **36-bit Balanced Adder Tree**
-Four-level balanced tree:
-
-- 16→8  
-- 8→4  
-- 4→2  
-- 2→1 → final_sum  
-
-Images:  
-- ![Waveform](Assets/wave_mac_part1.png)  
-- ![Waveform](Assets/wave_mac_part2.png)   
-- ![Waveform](Assets/wave_mac_part3.png) 
-
-These waveforms demonstrate correct accumulation.
-
-#### 4. **Stage 2 — Pipeline Output Register**
-Stores final 36-bit result.
-
----
-
-### Top-Level Module
-Integrates:
-
-- Shift Register  
-- Coefficient ROM  
-- MAC Core  
-
-Dataflow:
-
-```
-sample_in → shift_reg → samples_flat
-samples_flat + coeffs → MAC core → y_out
-```
-
-Clock & reset propagate through all submodules to ensure deterministic timing.
-
----
-
-### Self-Checking Testbench
-The testbench verifies correctness cycle-by-cycle.
-
-Features:
-
-- Software reference FIR model  
-- Cycle-accurate comparison with DUT  
-- Automatic failure detection  
-- Warm-up cycles before checking  
-- Multiple test patterns:
-  - Ramp  
-  - Step  
-  - Alternating ±100  
-  - Randomized  
-
-A waveform is generated: `dump.vcd`.
-
----
-
-## Simulation Waveforms
-
-### 1. Shift Register Operation  
-Demonstrates correct sample propagation through taps:
-
 ![Shift Register](Assets/wave_shift_reg.png)
 
+*Shows correct shifting of samples each cycle and proper reset initialization.*
 
 ---
 
-### 2. MAC Core — Partial Adder Tree  
-Shows early aggregation stages:
+## **Coefficient ROM**
 
-![MAC Stage 1](Assets/wave_mac_part1.png)
-![MAC Stage 2](Assets/wave_mac_part2.png)
-![MAC Stage 3](Assets/wave_mac_part3.png)
+Provides 16 constant signed Q1.15 coefficients.  
+Zero latency, fully synthesizable.
 
 ---
 
-### 3. MAC Core — Registered Products  
-Waveforms of the 32-bit product registers:
+## **MAC Core**
 
-```
-![MAC Products 1](Assets/wave_mac_prod1.png)
-![MAC Products 2](Assets/wave_mac_prod2.png)
+### **Stage 1 — Parallel Multipliers**
+
+Each tap × coefficient pair is multiplied in parallel  
+and stored in 32-bit registers.
+
+**Waveforms:**  
+![MAC Products 1](Assets/wave_mac_prod1.png)  
+![MAC Products 2](Assets/wave_mac_prod2.png)  
 ![MAC Products 3](Assets/wave_mac_prod3.png)
-```
+
+*Shows correct multiplier timing and stable registered outputs.*
 
 ---
 
-### 4. Output Latency (2 cycles)
-Demonstrates deterministic two-cycle pipeline delay:
+### **Stage 2 — 36-bit Adder Tree**
 
-```
+A balanced four-stage adder tree reduces:
+
+16 → 8 → 4 → 2 → 1
+
+**Waveforms:**  
+![MAC Part 1](Assets/wave_mac_part1.png)  
+![MAC Part 2](Assets/wave_mac_part2.png)  
+![MAC Part 3](Assets/wave_mac_part3.png)
+
+*Shows progressive accumulation of partial sums without overflow.*
+
+---
+
+### **Final Pipeline Stage**
+
+Registers the final 36-bit result → ensures deterministic 2-cycle latency.
+
+**Waveform:**  
 ![Output Latency](Assets/wave_output_latency.png)
-```
+
+*Shows exact 2-cycle delay between input activity and final output.*
 
 ---
 
-## Possible Improvements
-Future extensions:
+## **Top-Level**
 
-1. **Coefficient programmability**
-2. **More taps (32/64/128)**
-3. **Higher pipeline depth for 500MHz+**
-4. **Floating-point support**
-5. **Polyphase filters for up/down sampling**
-6. **Parallel multi-channel architecture**
-7. **AXI-Stream / Avalon interface**
+Connects the entire FIR structure:
+sample_in ──► shift_reg ──► samples_flat  
+(samples_flat, coeffs) ──► MAC ──► y_out
 
----
 
-## Conclusion
-This project demonstrates a complete, pipelined, fully verified **16-tap fixed-point FIR filter** implemented in Verilog.  
-It combines:
 
-- Hardware DSP fundamentals  
-- Precise Q-format arithmetic  
-- Pipelined MAC engines  
-- Structural HDL design  
-- Exhaustive, self-checking verification  
-
-The system is synthesizable, modular, scalable, and suitable both as a real hardware block and as a learning reference in digital signal processing.
+Clock/reset propagate synchronously to ensure stable timing.
 
 ---
 
-## License
-Open for educational and academic use.  
-Users may modify or extend the design with appropriate credit.
+## **Self-Checking Testbench**
+
+Features:
+
+- Software reference FIR  
+- 2-cycle aligned comparison  
+- Automatic mismatch detection  
+- Stimuli: ramp, step, alternating, random  
+- Generates `dump.vcd` for waveform inspection
+
+---
+
+## **Possible Improvements**
+
+- Programmable coefficients  
+- 32/64/128-tap variants  
+- Deeper pipelining (>500 MHz)  
+- SIMD multi-channel FIR  
+- AXI-Stream interface  
+- Half-band / polyphase design  
+
+---
+
+## **Conclusion**
+
+This project demonstrates a modular, synthesizable, pipelined FIR filter with:
+
+- Q-format arithmetic  
+- Parallel multipliers  
+- Balanced adder tree  
+- Deterministic timing  
+- Self-checking verification  
+
+Ideal for FPGA, ASIC, and DSP learning environments.
+
+---
+
+## **License**
+
+Open for academic and educational use.  
+Modifications are welcome with credit.
+
