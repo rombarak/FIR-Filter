@@ -156,7 +156,8 @@ Features:
 Shows correct propagation of samples:
 
 ```
-(Assets/wave_shift_reg.png)
+![Waveform](Assets/wave_shift_reg.png)
+
 ```
 
 ---
